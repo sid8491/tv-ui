@@ -1,0 +1,20 @@
+# Only the app sources are published. Everything else in this folder stays local:
+# TV snapshots and APK store, photos, change logs with network details, keystores, built APKs.
+*
+!.gitignore
+!README.md
+!launcher/
+!launcher/**
+!tvkeyremap/
+!tvkeyremap/**
+launcher/out/
+launcher/*.apk
+launcher/*.idsig
+launcher/patch_v03.py
+tvkeyremap/out/
+tvkeyremap/*.apk
+tvkeyremap/*.idsig
+tvkeyremap/*.jks
+tvkeyremap/changes.log
+keystore.properties
+tv.properties
