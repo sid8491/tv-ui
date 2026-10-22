@@ -4,6 +4,14 @@ A home screen for an Android TV, built for my daughter.
 
 One row of apps with the real app artwork, a wall of her photos shuffled from a folder on the TV, "continue watching" across apps, a calendar page behind the clock, a wallpaper that follows the sun, and the remote's colour buttons mapped to the apps we actually use. No ads, no account, no cloud, no tracking.
 
+![Home screen](docs/home.png)
+
+![Calendar page](docs/calendar.png)
+
+![Dock with a focused app](docs/dock-focus.png)
+
+*Design mock-ups; the photo frames are placeholders.*
+
 ## Apps in this repo
 
 | Folder | What it is |
