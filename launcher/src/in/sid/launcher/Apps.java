@@ -73,7 +73,7 @@ final class Apps {
         return out;
     }
 
-    private static final int BW = 320, BH = 180;
+    static final int BW = 320, BH = 180;
 
     /** The app's banner drawn into a small 16:9 bitmap (centre-cropped). */
     private static Bitmap rasterise(Drawable d) {

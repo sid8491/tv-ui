@@ -12,7 +12,7 @@
 launcher/out/
 launcher/*.apk
 launcher/*.idsig
-launcher/patch_v03.py
+launcher/patch_v0*.py
 tvkeyremap/out/
 tvkeyremap/*.apk
 tvkeyremap/*.idsig

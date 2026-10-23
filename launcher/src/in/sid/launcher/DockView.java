@@ -10,6 +10,7 @@ import android.widget.ImageView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * One glass bar holding the apps' real banners. The focused tile lifts out of the dock (scale + translation,
@@ -23,6 +24,18 @@ final class DockView extends ViewGroup {
     private final float padV, padH, gap, radius;
     private float lift = 1.42f, liftY = -14f;
     private float maxTile = 0; // 0 = no cap; otherwise tiles never grow past this width and the bar hugs them
+    private Map<String, android.graphics.Bitmap> photoTiles; // pkg -> composed tile; null or missing = the app's banner
+
+    /** Swap the tiles' artwork: photo tiles where available, the plain banner otherwise. */
+    void setPhotoTiles(Map<String, android.graphics.Bitmap> tiles) {
+        photoTiles = tiles;
+        for (int i = 0; i < getChildCount() && i < apps.size(); i++) ((ImageView) getChildAt(i)).setImageDrawable(artwork(apps.get(i)));
+    }
+
+    private android.graphics.drawable.Drawable artwork(Apps.Entry e) {
+        android.graphics.Bitmap b = photoTiles == null ? null : photoTiles.get(e.pkg);
+        return b != null ? new android.graphics.drawable.BitmapDrawable(getResources(), b) : e.drawable(getContext());
+    }
 
     void setMaxTileWidth(float units) { maxTile = U.f(units); }
 
@@ -54,7 +67,7 @@ final class DockView extends ViewGroup {
     private View tile(Apps.Entry e) {
         ImageView iv = new ImageView(getContext());
         iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        iv.setImageDrawable(e.drawable(getContext()));
+        iv.setImageDrawable(artwork(e));
         iv.setBackgroundColor(0xFF000000);
         iv.setOutlineProvider(new ViewOutlineProvider() {
             @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius); }

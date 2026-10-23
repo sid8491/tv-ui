@@ -8,6 +8,7 @@ ADB="C:/Users/Sid/AppData/Local/Android/Sdk/platform-tools/adb.exe"
 # the TV's adb address comes from TV_ADDR or tv.properties (addr=...) in the repo root, e.g. 192.168.1.50:5555
 TV="${TV_ADDR:-$(sed -n "s/^addr=//p" ../tv.properties 2>/dev/null)}"; [ -n "$TV" ] || { echo "set TV_ADDR or create ../tv.properties (addr=<ip>:5555)"; exit 1; }
 PHOTOS="D:/work/develop/debloat-tv/design/photos/tv-ready"
+ICONS="D:/work/develop/debloat-tv/design/photos/icons-ready"
 A() { "$ADB" -s "$TV" shell "$@" 2>&1 </dev/null | grep -v 'Init wrapper' | tr -d '\r'; }
 "$ADB" connect "$TV" >/dev/null 2>&1
 "$ADB" -s "$TV" get-state >/dev/null 2>&1 || { echo "TV not reachable"; exit 1; }
@@ -19,6 +20,14 @@ for f in "$PHOTOS"/*.jpg "$PHOTOS"/*.jpeg "$PHOTOS"/*.png; do
   "$ADB" -s "$TV" push "$f" "/sdcard/Pictures/Aanya/" </dev/null 2>&1 | grep -v 'Init wrapper' | tail -1
 done
 A "ls /sdcard/Pictures/Aanya | wc -l"
+
+echo "== icon photos -> /sdcard/Pictures/Aanya/icons (one per dock app, with the app's banner as a badge)"
+A "mkdir -p /sdcard/Pictures/Aanya/icons"
+for f in "$ICONS"/*.jpg "$ICONS"/*.jpeg "$ICONS"/*.png; do
+  [ -f "$f" ] || continue
+  "$ADB" -s "$TV" push "$f" "/sdcard/Pictures/Aanya/icons/" </dev/null 2>&1 | grep -v 'Init wrapper' | tail -1
+done
+A "ls /sdcard/Pictures/Aanya/icons | wc -l"
 
 echo "== install"
 "$ADB" -s "$TV" install -r launcher.apk 2>&1 </dev/null | grep -v 'Init wrapper'

@@ -34,6 +34,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 
 /**
@@ -405,10 +406,11 @@ final class HomeView extends FrameLayout {
         MenuOverlay.Row folder = new MenuOverlay.Row("folder", "camera", "Photo folder", prefs.photoFolder() + " · " + photoCount + " photos");
         MenuOverlay.Row shuffle = new MenuOverlay.Row("shuffle", "image", "Shuffle the wall", shuffleValue());
         MenuOverlay.Row dockRow = new MenuOverlay.Row("dock", "grid", "Dock apps", dock.count() + " apps · reorder, remove, add");
+        MenuOverlay.Row style = new MenuOverlay.Row("style", "image", "Dock icons", dockStyleValue());
         MenuOverlay.Row cwRow = new MenuOverlay.Row("cw", "play", "Continue watching", prefs.continueWatching() ? "On" : "Off");
         MenuOverlay.Row name = new MenuOverlay.Row("name", "heart", "Greeting name", prefs.name());
         MenuOverlay.Row remote = new MenuOverlay.Row("remote", "tv", "Remote buttons", "Red Apple TV · Green Prime · Yellow Stremio · Blue Where to Watch · Play JioHotstar");
-        rows.addAll(Arrays.asList(sky, folder, shuffle, dockRow, cwRow, name, remote));
+        rows.addAll(Arrays.asList(sky, folder, shuffle, dockRow, style, cwRow, name, remote));
         m.setRows(rows);
         m.setListener(new MenuOverlay.Listener() {
             @Override public void onSelect(MenuOverlay.Row r) {
@@ -427,6 +429,10 @@ final class HomeView extends FrameLayout {
                         r.value = prefs.continueWatching() ? "On" : "Off"; m.refreshRow(r); applyCwVisibility(); break;
                     }
                     case "dock": closeOverlay(); startEditing(); break;
+                    case "style": {
+                        prefs.setDockStyle("photo".equals(prefs.dockStyle()) ? "original" : "photo");
+                        r.value = dockStyleValue(); m.refreshRow(r); loadPhotos(); break;
+                    }
                     case "name": {
                         String[] names = {"Aanya", "Sid", "Family"};
                         int i = Arrays.asList(names).indexOf(prefs.name());
@@ -440,6 +446,12 @@ final class HomeView extends FrameLayout {
             @Override public void onBack() { showSettingsMenu(); }
         });
         showOverlay(m, "home", U.px(640), LayoutParams.WRAP_CONTENT, U.px(1920 - 96 - 640), U.px(230));
+    }
+
+    private String dockStyleValue() {
+        if (!"photo".equals(prefs.dockStyle())) return "Original banners";
+        return iconCount > 0 ? prefs.name() + "'s photos · " + iconCount + " in " + prefs.photoFolder() + "/" + PhotoTiles.SUBFOLDER
+                             : "Photos · none found in " + prefs.photoFolder() + "/" + PhotoTiles.SUBFOLDER + ", showing banners";
     }
 
     private String skyValue() {
@@ -572,6 +584,7 @@ final class HomeView extends FrameLayout {
         List<String> pkgs = new ArrayList<>();
         for (Apps.Entry e : dock.apps()) pkgs.add(e.pkg);
         prefs.setDock(pkgs);
+        loadPhotos(); // new apps need their photo tiles
         dock.setEditing(false);
         wallTitle.setVisibility(VISIBLE);
         removeView(editBar);
@@ -589,11 +602,15 @@ final class HomeView extends FrameLayout {
 
     /* ------------------------------------------------------------------ data */
 
-    private int photoCount;
+    private int photoCount, iconCount;
 
     void loadPhotos() {
         final File dir = new File(Environment.getExternalStorageDirectory(), prefs.photoFolder());
         final int shuffle = prefs.shuffleDays();
+        final boolean photoDock = "photo".equals(prefs.dockStyle());
+        final List<String> dockPkgs = new ArrayList<>();
+        for (Apps.Entry e : dock.apps()) dockPkgs.add(e.pkg);
+        if (!photoDock) dock.setPhotoTiles(null);
         new Thread(() -> {
             File[] files = dir.listFiles((d, n) -> { String l = n.toLowerCase(Locale.ROOT); return l.endsWith(".jpg") || l.endsWith(".jpeg") || l.endsWith(".png") || l.endsWith(".webp"); });
             final List<Bitmap> out = new ArrayList<>();
@@ -610,10 +627,15 @@ final class HomeView extends FrameLayout {
             }
             final int c = count;
             handler.post(() -> { photoCount = c; wall.setPhotos(out); });
+            // dock tiles: each app gets its own photo with the app's banner as a badge
+            List<File> icons = PhotoTiles.files(dir, shuffle);
+            final int ic = icons.size();
+            final Map<String, Bitmap> tiles = photoDock ? PhotoTiles.build(prefs, apps, dockPkgs, icons) : null;
+            handler.post(() -> { iconCount = ic; if (photoDock) dock.setPhotoTiles(tiles.isEmpty() ? null : tiles); });
         }, "photos").start();
     }
 
-    private static Bitmap decode(File f, int targetW) {
+    static Bitmap decode(File f, int targetW) {
         try {
             BitmapFactory.Options o = new BitmapFactory.Options();
             o.inJustDecodeBounds = true;
