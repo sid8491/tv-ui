@@ -48,14 +48,27 @@ public class MainActivity extends Activity {
         if (home != null) home.closeOverlay();
     }
 
-    private boolean swallowUp;
+    private boolean swallowUp, okDown, okLong;
 
-    /** All remote keys are handled here, before any child view can claim them (the home screen has one focus model of its own). */
+    /**
+     * All remote keys are handled here, before any child view can claim them (the home screen has one focus model of its own).
+     * OK is special: a tap acts on release, holding it (the first auto-repeat) is a long press, used to pick up a dock tile.
+     */
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         int code = event.getKeyCode();
+        boolean ok = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER;
+        if (ok && home != null) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() == 0) { okDown = true; okLong = false; }
+                else if (okDown && !okLong) { okLong = true; home.onLongPress(); }
+            } else if (event.getAction() == KeyEvent.ACTION_UP) {
+                if (okDown && !okLong) home.onKey(KeyEvent.KEYCODE_DPAD_CENTER);
+                okDown = false; okLong = false;
+            }
+            return true;
+        }
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            boolean oneShot = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_BACK;
-            if (event.getRepeatCount() > 0 && oneShot) { swallowUp = true; return true; }
+            if (event.getRepeatCount() > 0 && code == KeyEvent.KEYCODE_BACK) { swallowUp = true; return true; }
             if (home != null && home.onKey(code)) { swallowUp = true; return true; }
             swallowUp = false;
         } else if (event.getAction() == KeyEvent.ACTION_UP && swallowUp) {

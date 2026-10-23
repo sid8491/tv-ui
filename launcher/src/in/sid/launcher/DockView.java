@@ -19,7 +19,7 @@ import java.util.Map;
 final class DockView extends ViewGroup {
     private final List<Apps.Entry> apps = new ArrayList<>();
     private int focused = -1;
-    private boolean editing;
+    private boolean editing, moving;
     private final int columns;       // 0 = one row with as many columns as apps
     private final float padV, padH, gap, radius;
     private float lift = 1.42f, liftY = -14f;
@@ -84,15 +84,16 @@ final class DockView extends ViewGroup {
 
     void setFocused(int idx) { focused = idx; applyFocus(true); }
     int focused() { return focused; }
-    void setEditing(boolean e) { editing = e; applyFocus(false); }
+    void setEditing(boolean e) { editing = e; if (!e) moving = false; applyFocus(false); }
+    void setMoving(boolean m) { moving = m; applyFocus(true); }
 
     private void applyFocus(boolean animate) {
         for (int i = 0; i < getChildCount(); i++) {
             ImageView v = (ImageView) getChildAt(i);
             boolean on = i == focused;
             GradientDrawable ring = (GradientDrawable) v.getForeground();
-            ring.setStroke(on ? U.px(2.5f) : U.px(1), on ? (editing ? 0xFFF59E0B : 0xF2FFFFFF) : U.white(0.18f));
-            float s = on ? lift : 1f, ty = on ? U.f(liftY) : 0f;
+            ring.setStroke(on ? U.px(2.5f) : U.px(1), on ? (editing ? (moving ? 0xFF34D399 : 0xFFF59E0B) : 0xF2FFFFFF) : U.white(0.18f));
+            float s = on ? (moving ? lift * 1.08f : lift) : 1f, ty = on ? U.f(moving ? liftY - 10 : liftY) : 0f;
             v.setTranslationZ(on ? U.f(20) : 0f);
             v.setElevation(on ? U.f(12) : 0f);
             if (animate) {

@@ -66,6 +66,8 @@ final class HomeView extends FrameLayout {
     // state
     private int focus = 0, lastDock = 0;
     private boolean editing; private boolean editAvail; private int editIdx;
+    private boolean moving;    // editor: ◀ ▶ move the lifted tile instead of selecting another
+    private boolean quickMove; // the move began with a long press on the home screen: dropping the tile leaves the editor
     private View overlay; private String overlayKind;
     private List<WatchNext.Item> cwItems = new ArrayList<>();
     private String skyLabel = "";
@@ -246,7 +248,7 @@ final class HomeView extends FrameLayout {
         if (editing) {
             dockLabel.setVisibility(VISIBLE); statusLabel.setVisibility(GONE);
             Apps.Entry e = editAvail ? availStrip.at(editIdx) : dock.at(editIdx);
-            dockLabel.setText(e == null ? "" : e.label + (editAvail ? " · not in the dock" : " · position " + (editIdx + 1) + " of " + dock.count()));
+            dockLabel.setText(e == null ? "" : e.label + (editAvail ? " · not in the dock" : (moving ? " · moving, " : " · ") + "position " + (editIdx + 1) + " of " + dock.count()));
             dockLabel.measure(MeasureSpec.makeMeasureSpec(U.px(1920), MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(U.px(44), MeasureSpec.EXACTLY));
             place(dockLabel, U.px(96) + (U.px(1920 - 192) - dockLabel.getMeasuredWidth()) / 2, dockLabel.getTop());
             return;
@@ -310,6 +312,38 @@ final class HomeView extends FrameLayout {
         }
         setFocus(next);
         return true;
+    }
+
+    /** OK held down. On a dock tile this picks the tile up so ◀ ▶ move it; in the editor it does the same for the selected tile. */
+    boolean onLongPress() {
+        if (overlay != null) return false;
+        if (editing) {
+            if (!editAvail && !moving) startMoving(false);
+            return true;
+        }
+        if (inDock()) {
+            startEditing();
+            editIdx = focus;
+            dock.setFocused(editIdx);
+            startMoving(true);
+            return true;
+        }
+        return false;
+    }
+
+    private void startMoving(boolean quick) {
+        moving = true; quickMove = quick;
+        dock.setMoving(true);
+        editHint.setText(hint());
+        updateLabels();
+        post(this::positionDockLabel);
+    }
+
+    /** Drop the lifted tile; a quick move (from the home screen) is done at that point. */
+    private void stopMoving() {
+        moving = false;
+        dock.setMoving(false);
+        if (quickMove) { quickMove = false; stopEditing(); }
     }
 
     private void activate() {
@@ -405,7 +439,7 @@ final class HomeView extends FrameLayout {
         MenuOverlay.Row sky = new MenuOverlay.Row("sky", "sun", "Wallpaper", skyValue());
         MenuOverlay.Row folder = new MenuOverlay.Row("folder", "camera", "Photo folder", prefs.photoFolder() + " · " + photoCount + " photos");
         MenuOverlay.Row shuffle = new MenuOverlay.Row("shuffle", "image", "Shuffle the wall", shuffleValue());
-        MenuOverlay.Row dockRow = new MenuOverlay.Row("dock", "grid", "Dock apps", dock.count() + " apps · reorder, remove, add");
+        MenuOverlay.Row dockRow = new MenuOverlay.Row("dock", "grid", "Dock apps", dock.count() + " apps · reorder, remove, add (or hold OK on a tile)");
         MenuOverlay.Row style = new MenuOverlay.Row("style", "image", "Dock icons", dockStyleValue());
         MenuOverlay.Row cwRow = new MenuOverlay.Row("cw", "play", "Continue watching", prefs.continueWatching() ? "On" : "Off");
         MenuOverlay.Row name = new MenuOverlay.Row("name", "heart", "Greeting name", prefs.name());
@@ -536,28 +570,35 @@ final class HomeView extends FrameLayout {
     }
 
     private String hint() {
-        return editAvail ? "◀ ▶ choose · OK add to dock · ▼ back to dock · Back done" : "◀ ▶ move · OK remove · ▲ available apps · Back done";
+        if (moving) return "◀ ▶ move · OK or Back to drop";
+        return editAvail ? "◀ ▶ choose · OK add to dock · ▼ back to dock · Back done" : "◀ ▶ select · hold OK to move · OK remove · ▲ available apps · Back done";
     }
 
     private boolean editKey(int key) {
         switch (key) {
             case KeyEvent.KEYCODE_BACK: case KeyEvent.KEYCODE_ESCAPE:
+                if (moving) { stopMoving(); if (!editing) return true; break; }
                 stopEditing(); return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
                 if (editAvail) { editIdx = Math.max(0, editIdx - 1); availStrip.setFocused(editIdx); }
-                else if (editIdx > 0) { dock.move(editIdx, editIdx - 1); editIdx--; dock.setFocused(editIdx); }
+                else if (moving) { if (editIdx > 0) { dock.move(editIdx, editIdx - 1); editIdx--; dock.setFocused(editIdx); } }
+                else { editIdx = Math.max(0, editIdx - 1); dock.setFocused(editIdx); }
                 break;
             case KeyEvent.KEYCODE_DPAD_RIGHT:
                 if (editAvail) { editIdx = Math.min(availStrip.count() - 1, editIdx + 1); availStrip.setFocused(editIdx); }
-                else if (editIdx < dock.count() - 1) { dock.move(editIdx, editIdx + 1); editIdx++; dock.setFocused(editIdx); }
+                else if (moving) { if (editIdx < dock.count() - 1) { dock.move(editIdx, editIdx + 1); editIdx++; dock.setFocused(editIdx); } }
+                else { editIdx = Math.min(dock.count() - 1, editIdx + 1); dock.setFocused(editIdx); }
                 break;
             case KeyEvent.KEYCODE_DPAD_UP:
+                if (moving) break;
                 if (!editAvail && availStrip.count() > 0) { editAvail = true; editIdx = 0; dock.setFocused(-1); availStrip.setFocused(0); }
                 break;
             case KeyEvent.KEYCODE_DPAD_DOWN:
+                if (moving) break;
                 if (editAvail) { editAvail = false; editIdx = 0; availStrip.setFocused(-1); dock.setFocused(0); }
                 break;
             case KeyEvent.KEYCODE_DPAD_CENTER: case KeyEvent.KEYCODE_ENTER:
+                if (moving) { stopMoving(); if (!editing) return true; break; }
                 if (editAvail) {
                     Apps.Entry e = availStrip.at(editIdx);
                     if (e != null) { dock.add(e); availStrip.removeAt(editIdx); editIdx = Math.min(editIdx, availStrip.count() - 1);
@@ -580,7 +621,7 @@ final class HomeView extends FrameLayout {
     }
 
     private void stopEditing() {
-        editing = false;
+        editing = false; moving = false; quickMove = false;
         List<String> pkgs = new ArrayList<>();
         for (Apps.Entry e : dock.apps()) pkgs.add(e.pkg);
         prefs.setDock(pkgs);
