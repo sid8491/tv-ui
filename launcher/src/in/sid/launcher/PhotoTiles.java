@@ -56,6 +56,7 @@ final class PhotoTiles {
     static Map<String, Bitmap> build(Prefs prefs, Apps apps, List<String> pkgs, List<File> photos) {
         Map<String, Bitmap> out = new HashMap<>();
         if (photos.isEmpty()) return out;
+        Map<String, float[]> manual = readCrops(new File(photos.get(0).getParentFile(), "crops.txt"));
         List<String> order = new ArrayList<>(pkgs);
         Collections.sort(order);
         Map<File, Bitmap> cropped = new HashMap<>();
@@ -65,7 +66,7 @@ final class PhotoTiles {
             File f = photos.get(i % photos.size());
             Bitmap photo = cropped.get(f);
             if (photo == null) {
-                photo = croppedPhoto(prefs, f);
+                photo = croppedPhoto(prefs, f, manual.get(f.getName()));
                 if (photo == null) continue;
                 cropped.put(f, photo);
             }
@@ -74,15 +75,42 @@ final class PhotoTiles {
         return out;
     }
 
-    /** The photo decoded small and cropped to 16:9 around the face. */
-    private static Bitmap croppedPhoto(Prefs prefs, File f) {
+    /**
+     * Optional hand-picked crops next to the photos: one "name.jpg x y w h" per line, fractions of the photo,
+     * for photos where the detector misses (she is small in the frame) or picks the wrong thing.
+     */
+    static Map<String, float[]> readCrops(File f) {
+        Map<String, float[]> out = new HashMap<>();
+        if (!f.isFile()) return out;
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f))) {
+            String line;
+            while ((line = r.readLine()) != null) {
+                String[] p = line.trim().split(" +");
+                if (p.length < 5 || p[0].startsWith("#")) continue;
+                out.put(p[0], new float[]{Float.parseFloat(p[1]), Float.parseFloat(p[2]), Float.parseFloat(p[3]), Float.parseFloat(p[4])});
+            }
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    /** The photo decoded small and cropped to 16:9 around the face (or the hand-picked crop when there is one). */
+    private static Bitmap croppedPhoto(Prefs prefs, File f, float[] manual) {
         Bitmap b = HomeView.decode(f, DECODE_W);
         if (b == null) return null;
         if ((b.getWidth() & 1) == 1) b = Bitmap.createBitmap(b, 0, 0, b.getWidth() - 1, b.getHeight()); // the detector needs an even width
         String key = f.getName() + ":" + f.length();
-        float[] crop = prefs.faceCrop(key);
+        float[] crop = manual != null ? manual : prefs.faceCrop(key);
         if (crop == null) {
-            crop = findCrop(b);
+            crop = findCrop(b, 0f, f.getName());
+            if (crop == null) { // no face at this size: she may be small in the frame, look again at full size
+                Bitmap big = HomeView.decode(f, DECODE_W * 2);
+                if (big != null) {
+                    if ((big.getWidth() & 1) == 1) big = Bitmap.createBitmap(big, 0, 0, big.getWidth() - 1, big.getHeight());
+                    crop = findCrop(big, 0.55f, f.getName() + "@2x");
+                    big.recycle();
+                }
+            }
+            if (crop == null) crop = defaultCrop(b.getWidth(), b.getHeight());
             prefs.setFaceCrop(key, crop);
         }
         int w = b.getWidth(), h = b.getHeight();
@@ -94,25 +122,35 @@ final class PhotoTiles {
         return tile;
     }
 
-    /** A 16:9 crop as fractions {x, y, w, h}: around the largest face, or the upper middle when none is found. */
-    static float[] findCrop(Bitmap b) {
+    /** No face found: the middle of the photo, a bit tighter than full width (a small child in a big scene is usually mid-frame). */
+    static float[] defaultCrop(int w, int h) {
+        return fit(w, h, w / 2f, h * 0.5f, w * 0.62f);
+    }
+
+    /** A 16:9 crop as fractions {x, y, w, h} around the largest face, or null when none is found. */
+    static float[] findCrop(Bitmap b, float minConfidence, String tag) {
         int w = b.getWidth(), h = b.getHeight();
-        float cx = w / 2f, cy = h * 0.35f, cw = w;
+        float cx, cy, cw;
         try {
             FaceDetector.Face[] faces = new FaceDetector.Face[4];
             int n = new FaceDetector(w, h, faces.length).findFaces(b, faces);
             FaceDetector.Face best = null;
             for (int i = 0; i < n; i++) {
-                if (faces[i].confidence() < FaceDetector.Face.CONFIDENCE_THRESHOLD) continue;
+                android.util.Log.d("home", "face " + tag + " " + w + "x" + h + " conf=" + faces[i].confidence() + " eyes=" + faces[i].eyesDistance());
+                if (faces[i].confidence() < Math.max(minConfidence, FaceDetector.Face.CONFIDENCE_THRESHOLD)) continue;
+                if (faces[i].eyesDistance() < 8f) continue; // too small to be a real face at this size
                 if (best == null || faces[i].eyesDistance() > best.eyesDistance()) best = faces[i];
             }
-            if (best != null) {
-                PointF mid = new PointF();
-                best.getMidPoint(mid);
-                cx = mid.x; cy = mid.y;
-                cw = Math.max(w * 0.45f, Math.min(w, best.eyesDistance() * 9f));
-            }
-        } catch (Exception ignored) { }
+            if (best == null) return null;
+            PointF mid = new PointF();
+            best.getMidPoint(mid);
+            cx = mid.x; cy = mid.y;
+            cw = Math.max(w * 0.45f, Math.min(w, best.eyesDistance() * 9f));
+        } catch (Exception e) { return null; }
+        return fit(w, h, cx, cy, cw);
+    }
+
+    private static float[] fit(int w, int h, float cx, float cy, float cw) {
         float ch = cw * 9f / 16f;
         if (ch > h) { ch = h; cw = ch * 16f / 9f; }
         if (cw > w) { cw = w; ch = cw * 9f / 16f; }

@@ -23,7 +23,7 @@ A "ls /sdcard/Pictures/Aanya | wc -l"
 
 echo "== icon photos -> /sdcard/Pictures/Aanya/icons (one per dock app, with the app's banner as a badge)"
 A "mkdir -p /sdcard/Pictures/Aanya/icons"
-for f in "$ICONS"/*.jpg "$ICONS"/*.jpeg "$ICONS"/*.png; do
+for f in "$ICONS"/*.jpg "$ICONS"/*.jpeg "$ICONS"/*.png "$ICONS"/crops.txt; do
   [ -f "$f" ] || continue
   "$ADB" -s "$TV" push "$f" "/sdcard/Pictures/Aanya/icons/" </dev/null 2>&1 | grep -v 'Init wrapper' | tail -1
 done

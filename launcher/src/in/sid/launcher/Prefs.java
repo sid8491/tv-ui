@@ -57,12 +57,12 @@ final class Prefs {
 
     /** Face crop found for a photo, as fractions {x, y, w, h}; null when not computed yet. */
     float[] faceCrop(String key) {
-        String s = sp.getString("face:" + key, null);
+        String s = sp.getString("face3:" + key, null);
         if (s == null) return null;
         try {
             String[] p = s.split(",");
             return new float[]{Float.parseFloat(p[0]), Float.parseFloat(p[1]), Float.parseFloat(p[2]), Float.parseFloat(p[3])};
         } catch (Exception e) { return null; }
     }
-    void setFaceCrop(String key, float[] c) { sp.edit().putString("face:" + key, c[0] + "," + c[1] + "," + c[2] + "," + c[3]).apply(); }
+    void setFaceCrop(String key, float[] c) { sp.edit().putString("face3:" + key, c[0] + "," + c[1] + "," + c[2] + "," + c[3]).apply(); }
 }
