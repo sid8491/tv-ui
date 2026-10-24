@@ -137,7 +137,7 @@ final class HomeView extends FrameLayout {
 
         // dock + label + legend
         dock = new DockView(c, 0, 22, 26, 16, 12);
-        dock.setMaxTileWidth(232);
+        dock.setMaxTileWidth(252); // six tiles: 252 wide, 141 high; the label and legend below still clear the screen edge
         dock.setBackground(new Glass(34));
         addView(dock, lp(U.px(1920 - 192), LayoutParams.WRAP_CONTENT, U.px(96), U.px(DOCK_TOP)));
         dockLabel = text(c, 24, U.medium, 0xFFFFFFFF);
