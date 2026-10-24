@@ -20,7 +20,14 @@ public class MainActivity extends Activity {
         home = new HomeView(this, new Prefs(this), new Apps(this));
         setContentView(home);
         askPermissions();
+        pendingCalendar = wantsCalendar(getIntent());
     }
+
+    /** Boolean extra: open the calendar on top of the home screen (sent by tvkeyremap for the remote's Text button). */
+    static final String EXTRA_CALENDAR = "calendar";
+    private boolean pendingCalendar; // acted on in onResume, which otherwise closes every overlay
+
+    private static boolean wantsCalendar(Intent i) { return i != null && i.getBooleanExtra(EXTRA_CALENDAR, false); }
 
     private void askPermissions() {
         List<String> need = new ArrayList<>();
@@ -35,7 +42,10 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (home != null) home.onResume();
+        if (home != null) {
+            home.onResume();
+            if (pendingCalendar) { pendingCalendar = false; home.openCalendar(); }
+        }
     }
 
     @Override protected void onDestroy() {
@@ -45,7 +55,9 @@ public class MainActivity extends Activity {
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        boolean wasOpen = home != null && home.calendarShowing();
         if (home != null) home.closeOverlay();
+        pendingCalendar = wantsCalendar(intent) && !wasOpen; // Text pressed again while the calendar is up: just close it
     }
 
     private boolean swallowUp, okDown, okLong;

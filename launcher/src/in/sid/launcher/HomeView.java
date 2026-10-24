@@ -137,7 +137,7 @@ final class HomeView extends FrameLayout {
 
         // dock + label + legend
         dock = new DockView(c, 0, 22, 26, 16, 12);
-        dock.setMaxTileWidth(196);
+        dock.setMaxTileWidth(232);
         dock.setBackground(new Glass(34));
         addView(dock, lp(U.px(1920 - 192), LayoutParams.WRAP_CONTENT, U.px(96), U.px(DOCK_TOP)));
         dockLabel = text(c, 24, U.medium, 0xFFFFFFFF);
@@ -275,6 +275,7 @@ final class HomeView extends FrameLayout {
 
     boolean onKey(int key) {
         android.util.Log.d("home", "key " + key + " focus=" + focus + " grid=" + GRID() + " overlay=" + overlayKind + " editing=" + editing);
+        if (key == KeyEvent.KEYCODE_FUNCTION) { openCalendar(); return true; } // the remote's "Text" button (not in the legend on purpose)
         if (overlay != null) return overlayKey(key);
         if (editing) return editKey(key);
         int next = focus;
@@ -409,6 +410,16 @@ final class HomeView extends FrameLayout {
         if (overlay instanceof AllAppsView) return ((AllAppsView) overlay).onKey(key);
         if (key == KeyEvent.KEYCODE_BACK || key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER) { closeOverlay(); return true; }
         return true;
+    }
+
+    boolean calendarShowing() { return "calendar".equals(overlayKind); }
+
+    /** Calendar from anywhere (Text key, or the remap service when another app is in front): toggles it, leaving any menu or editor. */
+    void openCalendar() {
+        if ("calendar".equals(overlayKind)) { closeOverlay(); return; }
+        if (editing) stopEditing();
+        closeOverlay();
+        showCalendar();
     }
 
     private void showCalendar() {

@@ -13,7 +13,7 @@ final class Prefs {
 
     static final String[] DEFAULT_DOCK = {
         "com.netflix.ninja", "com.amazon.amazonvideo.livingroom", "com.apple.atve.androidtv.appletv", "in.startv.hotstar",
-        "com.google.android.youtube.tv", "com.stremio.one", "com.sonyliv", "in.sid.wheretowatch",
+        "com.google.android.youtube.tv", "com.sonyliv",
     };
 
     /** Apps whose Watch Next rows are ignored (YouTube publishes recommendations there, not things being watched). */
